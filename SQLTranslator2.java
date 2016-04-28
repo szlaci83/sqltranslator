@@ -1,10 +1,20 @@
 /**
- * API to handle Database connections and translate comma separated values(CSV) 
+ * API to handle Database connections and translate commands as comma separated values(CSV) 
  * coming from the client to MYSQL statements, used by the server to query the 
  * database, and return the resultset as an ArrayList of appropriate objects.
- *
+ *  
+ *  Recognised commands:
+ *   - LOGIN 
+ *   - BOOK_TRIP
+ *   - VIEW_TRIP
+ *   - CANCEL_TRIP
+ *   - ASSIGN_DRIVER
+ *   - SIGN_UP
+ *   - AVAILABLE_DRIVERS
+ *   - GET_CARDS
+ *  
  *  @author Laszlo Szoboszlai
- *  @version 07/04/2016
+ *  @version 25/04/2016
  */
 
 package server;
@@ -16,17 +26,16 @@ import java.sql.Statement;
 import java.util.*;
 import common.*;
 
-public class SQLTranslator2{
-
+public class SQLTranslator{
 	//Default database's details:
 	private final static String DEFAULT_PORT = ":3306"; 
-	private final static String DEFAULT_DBURL = "jdbc:mysql://**********************";
+	private final static String DEFAULT_DBURL = "THE URL";
 	private final static String DEFAULT_USERNAME = "general";		
 	private final static String DEFAULT_PASSWORD = "general";
 	private final static String DRIVER = "com.mysql.jdbc.Driver"; // JDBC driver
-	
+
 	//flag to turn on test messages
-	static boolean test = false;
+	static boolean test = true;
 
 	/**
 	 *Creates ArrayList of CreditCard objects from a passed ResultSet.
@@ -40,7 +49,7 @@ public class SQLTranslator2{
 				returnList.add(newCard);
 			}
 		} catch (SQLException e) {
-			System.out.println( "Error: problem with SQL resultset!" );
+			System.out.println( "Error: problem with SQL resultset : " + e.getMessage() );
 		}
 		return returnList;
 	}
@@ -56,12 +65,12 @@ public class SQLTranslator2{
 				returnList.add(newStaff);
 			}
 		} catch (SQLException e) {
-			System.out.println( "Error: problem with SQL resultset!" );
+			System.out.println( "Error: problem with SQL resultset : " + e.getMessage() );
 		}
 		return returnList;
 	}
-	
-	
+
+
 	/**
 	 *Creates ArrayList of Trip objects from a passed ResultSet.
 	 */   
@@ -76,11 +85,11 @@ public class SQLTranslator2{
 				returnList.add(newTrip);
 			}
 		} catch (SQLException e) {
-			System.out.println( "Error: problem with SQL resultset!" );
+			System.out.println( "Error: problem with SQL resultset : " + e.getMessage() );
 		}
 		return returnList;
 	}
-	
+
 	/**
 	 *Creates ArrayList of Customer objects from a passed ResultSet.
 	 */   
@@ -93,11 +102,11 @@ public class SQLTranslator2{
 				returnList.add(newCustomer);
 			}
 		} catch (SQLException e) {
-			System.out.println( "Error: problem with SQL resultset!" );
+			System.out.println( "Error: problem with SQL resultset : " +e.getMessage() );
 		}
 		return returnList;
 	}
-	
+
 	/**
 	 *Creates ArrayList of Driver objects from a passed ResultSet.
 	 */
@@ -110,14 +119,18 @@ public class SQLTranslator2{
 				returnList.add(newDriver);
 			}
 		} catch (SQLException e) {
-			System.out.println( "Error: problem with SQL resultset!" );
+			System.out.println( "Error: problem with SQL resultset : " + e.getMessage() );
 		}
 		return returnList;
 	}
 
 	/**
 	 * Static method to make connection to the database.
-	 * Details given in parameters.
+	 * @param dataBase URL of the database to connect.
+	 * @param driver The database driver.
+	 * @param userName The username to connect to the database.
+	 * @param passWord The password to connect to the database.
+	 * @return Connection object.
 	 */
 	private static Connection connectToDB(String dataBase,String driver, String userName, String passWord ){
 		Connection  dbConnection = null;
@@ -132,18 +145,18 @@ public class SQLTranslator2{
 			//return the database connection
 			return dbConnection;		
 		}catch (Exception exc) {
-			System.out.println("Error: cannot connect to database!");
+			System.out.println("Error: cannot connect to database : " + exc.getMessage());
 			return null;
 		}
 	}
-	
+
 	/**
 	 * Static method to translate CSV to MYSQL statements.
 	 * @param CSV : comma separated value as a command by the client.
-	 * @return : MYSQL statement.
+	 * @return : MYSQL statement as a String.
 	 */
 	//temporarily not private for testing 
-	/*private*/ static String translateCSV(String CSV){
+	/*private*/ static String translateCSV(String CSV) throws TranslatorException{
 		StringBuilder sql = new StringBuilder();
 		StringBuilder innerSQL;
 		String CSVParts[] = CSV.split(",");
@@ -176,7 +189,7 @@ public class SQLTranslator2{
 			sql.append("SELECT * FROM trip WHERE ");
 			int ID = 0;
 			if ( ! CSVParts[1].equals("NULL") ){
-			   ID = Integer.parseInt(CSVParts[1]);
+				ID = Integer.parseInt(CSVParts[1]);
 			}
 			if((ID >= 1000) && (ID < 3000)){sql.append("cust_id=");}
 			if(ID >= 3000) {sql.append("driver_id=");}
@@ -226,11 +239,13 @@ public class SQLTranslator2{
 			innerSQL.append("'));");
 			sql.append(innerSQL);
 			break;
-		
+
 			//CSV command:
 			//LOGIN,userID,password
-			//TODO : handle email login !!!!!!
+			//or
+			//LOGIN,email,password
 		case "LOGIN":
+			if (!CSVParts[1].contains("@")){
 			innerSQL = new StringBuilder();
 			innerSQL.append("(SELECT ID FROM password  WHERE id=");
 			innerSQL.append(CSVParts[1]);
@@ -241,14 +256,22 @@ public class SQLTranslator2{
 			if (Integer.parseInt(CSVParts[1]) < 3000 ){
 				sql.append("SELECT * FROM customer WHERE CUSTOMER_ID=");				
 			}else{
-			  if (Integer.parseInt(CSVParts[1]) < 6000){
-				sql.append("SELECT * FROM driver WHERE DRIVER_ID=");
-			  }
-			  else{
-				sql.append("SELECT * FROM company_staff WHERE STAFF_ID=");
-			  }
+				if (Integer.parseInt(CSVParts[1]) < 6000){
+					sql.append("SELECT * FROM driver WHERE DRIVER_ID=");
+				}
+				else{
+					sql.append("SELECT * FROM company_staff WHERE STAFF_ID=");
+				}
 			}
 			sql.append(innerSQL);
+			}
+			else{
+			sql.append("SELECT * FROM customer JOIN password ON customer.CUSTOMER_ID = password.ID where password.pw LIKE '");
+			sql.append(CSVParts[2]);
+			sql.append("' AND customer.email LIKE '");
+			sql.append(CSVParts[1]);
+			sql.append("';");
+			}
 			break;			
 			//CSV command: 
 			//GET_CARDS,userID
@@ -256,10 +279,12 @@ public class SQLTranslator2{
 			sql.append( "SELECT * FROM card_info WHERE cust_id=" );
 			sql.append(CSVParts[1]);
 			break;
+		default:
+			throw new TranslatorException("Unrecognised command!");
 		}
 		return sql.toString();	
 	}
-	
+
 	/**
 	 * The only public method, the class can be reached through to translate and execute 
 	 * comma separated commands into SQL queries  and convert the ResultSet to an 
@@ -267,82 +292,105 @@ public class SQLTranslator2{
 	 * @param CSV
 	 * @return ArrayList created from the SQL ResultSet
 	 */
-	
-		public static ArrayList execute(String CSV){
+
+	public static ArrayList execute(String CSV){
 		Connection dbConnection = null;
 		Statement SQLStatement = null;
 		ResultSet SQLResultset = null;
 		//the arraylist created from the resultset
 		ArrayList returnList = new ArrayList();
+		
+		if (test ) { 
+			System.out.println("Test : ON");
+		}
+		else{
+			System.out.println("Test : OFF");
+		}
+		
 		try {
 			// establish connection to the default database    
-			 dbConnection = SQLTranslator2.connectToDB(DEFAULT_DBURL, DRIVER, DEFAULT_USERNAME, DEFAULT_PASSWORD);
-			 if ( test ) {
-				 System.out.println("Creating statement objects!");
-			 }
+			dbConnection = SQLTranslator.connectToDB(DEFAULT_DBURL, DRIVER, DEFAULT_USERNAME, DEFAULT_PASSWORD);
+			if ( test ) {
+				System.out.println("Creating statement objects!");
+			}
 			//Create a statement object
 			SQLStatement = dbConnection.createStatement();
 
 			//translate the CSV:
-			String SQLString = SQLTranslator2.translateCSV(CSV);
+			String SQLString= new String();
+			try{
+				SQLString = SQLTranslator.translateCSV(CSV);
+			}catch (TranslatorException te){
+				te.printStackTrace();
+			}
 			if ( test ) {
 				System.out.println("The created SQL query is: "  + SQLString);
 			}
+
 			//Execute SQL query
-			SQLResultset = SQLStatement.executeQuery(SQLString);
+			if (SQLString.startsWith("SELECT")){
+				SQLResultset = SQLStatement.executeQuery(SQLString);
+			}
+			else{
+				boolean success = SQLStatement.execute(SQLString);
+			}
+			
+			//TODO : check this
+			//if the resultset is empty we return an empty ArrayList
+			if (SQLResultset == null) {
+				return returnList;
+			}
+
 			if ( test ) {
 				System.out.println("The first column's name of the resultset: " + SQLResultset.getMetaData().getColumnName(1));
 			}
-			//Process the result set
-			//if the resultset are  trips, we create a list of trips
+			//Process the result set:
 			//creates  a list of trip objects from resultset
 			if(SQLResultset.getMetaData().getColumnName(1).equals("TRIP_ID")){
 				if ( test ) {
-					System.out.println("Building triplist!");
+					System.out.println("Building triplist from resultset!");
 				}
 				returnList = tripListBuilder(SQLResultset);
 			}
-			//if the resultset are  drivers, we create a list of drivers
 			//creates  a list of driver objects from resultset
 			if (SQLResultset.getMetaData().getColumnName(1).equals("DRIVER_ID")){
 				if ( test ) {
-					System.out.println("building driver list!");
+					System.out.println("Building driver list from resultset!");
 				}
 				returnList = driverListBuilder(SQLResultset);
 			}
-			//if the resultset are  customers, we create a list of customers
 			//creates  a list of customers objects from resultset
 			if (SQLResultset.getMetaData().getColumnName(1).equals("CUSTOMER_ID")){
 				if ( test ) {
-					System.out.println("building customer list!");
+					System.out.println("Building customer list from resultset!");
 				}
 				returnList = customerListBuilder(SQLResultset); 
 			}
-			
+
 			if (SQLResultset.getMetaData().getColumnName(2).equals("CARD_NO")){
 				if ( test ) {
-					System.out.println("building creditcard list!");
+					System.out.println("Building creditcard list from resultset!");
 				}
 				returnList = creditcardListBuilder(SQLResultset);
 			}
-			
+
 			if (SQLResultset.getMetaData().getColumnName(1).equals("STAFF_ID")){
 				if ( test ) {
-					System.out.println("building staff list!");
+					System.out.println("Building staff list from resultset!");
 				}
 				returnList = staffListBuilder(SQLResultset);
 			}
 		}
 		catch (Exception exc) {
-			System.out.println( "There was an error during the SQL query!" );
+			System.out.println( "There was an error during the SQL query : " + exc.getMessage());
 		}
-		//close everything down
+		//closing resources 
 		finally {
 			if (SQLResultset != null) {
 				try {
 					SQLResultset.close();
 				} catch (SQLException e) {
-					System.out.println( "Error during closing the connection to the database!" );
+					System.out.println( "Error during closing the connection to the database : " + e.getMessage() );
 				}
 			}
 
@@ -350,14 +398,14 @@ public class SQLTranslator2{
 				try {
 					SQLStatement.close();
 				} catch (SQLException e) {
-					System.out.println( "Error: empty SQL statement!" );
+					System.out.println( "Error: empty SQL statement : " + e.getMessage() );
 				}
 			}
 			if (dbConnection != null) {
 				try {
 					dbConnection.close();
 				} catch (SQLException e) {
-					System.out.println("Error: no database to close!");
+					System.out.println("Error: no database to close : " + e.getMessage());
 				}
 			}
 		}
